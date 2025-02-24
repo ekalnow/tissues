@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Price Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="mb-4">Price Tracker</h1>
+        
+        <!-- Add Product Form -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add New Product</h5>
+                <div class="input-group">
+                    <input type="text" id="productUrl" class="form-control" placeholder="Enter product URL">
+                    <button class="btn btn-primary" onclick="addProduct()">Add Product</button>
+                </div>
+                <div id="errorMessage" class="text-danger mt-2" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Tracked Products</h5>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Website</th>
+                                <th>Current Price</th>
+                                <th>Added Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTableBody">
+                            <!-- Products will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load products when page loads
+        document.addEventListener('DOMContentLoaded', loadProducts);
+
+        function loadProducts() {
+            fetch('/get_products')
+                .then(response => response.json())
+                .then(products => {
+                    const tableBody = document.getElementById('productsTableBody');
+                    tableBody.innerHTML = '';
+                    
+                    products.forEach(product => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td><a href="${product.url}" target="_blank">${product.name}</a></td>
+                            <td>${product.website}</td>
+                            <td>${product.current_price} SAR</td>
+                            <td>${new Date(product.created_at).toLocaleDateString()}</td>
+                            <td>
+                                <button class="btn btn-sm btn-info" onclick="viewHistory(${product.id})">History</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                })
+                .catch(error => console.error('Error loading products:', error));
+        }
+
+        function addProduct() {
+            const urlInput = document.getElementById('productUrl');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            fetch('/add_product', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    url: urlInput.value
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    errorMessage.textContent = data.error;
+                    errorMessage.style.display = 'block';
+                } else {
+                    errorMessage.style.display = 'none';
+                    urlInput.value = '';
+                    loadProducts();
+                }
+            })
+            .catch(error => {
+                errorMessage.textContent = 'An error occurred while adding the product.';
+                errorMessage.style.display = 'block';
+            });
+        }
+
+        function viewHistory(productId) {
+            // To be implemented
+            alert('Price history feature coming soon!');
+        }
+    </script>
+</body>
+</html>
