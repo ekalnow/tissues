@@ -5,35 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Price Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-    <div class="container mt-5">
-        <h1 class="mb-4">Price Tracker</h1>
+<body class="bg-light">
+    <div class="container">
+        <h1 class="page-title">Price Tracker</h1>
         
         <!-- Add Product Form -->
-        <div class="card mb-4">
+        <div class="card add-product-card">
             <div class="card-body">
-                <h5 class="card-title">Add New Product</h5>
+                <h5 class="card-title mb-3">Add Single Product</h5>
                 <div class="input-group">
                     <input type="text" id="productUrl" class="form-control" placeholder="Enter product URL">
-                    <button class="btn btn-primary" onclick="addProduct()">Add Product</button>
+                    <button class="btn btn-primary" onclick="addProduct()">
+                        <i class="fas fa-plus me-2"></i>Add Product
+                    </button>
                 </div>
                 <div id="errorMessage" class="text-danger mt-2" style="display: none;"></div>
             </div>
         </div>
 
-        <!-- Products Table -->
-        <div class="card">
+        <!-- Add Multiple Products Form -->
+        <div class="card add-multiple-products-card mt-4">
             <div class="card-body">
-                <h5 class="card-title">Tracked Products</h5>
+                <h5 class="card-title mb-3">Add Multiple Products</h5>
+                <textarea id="productsUrls" class="form-control" rows="4" placeholder="Enter one product URL per line"></textarea>
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                    <button class="btn btn-primary" onclick="addMultipleProducts()">
+                        <i class="fas fa-plus me-2"></i>Add Products
+                    </button>
+                    <small class="text-muted">Maximum 10 URLs at once</small>
+                </div>
+                <div id="multipleErrorMessage" class="text-danger mt-2" style="display: none;"></div>
+                <div id="batchResults" class="mt-3" style="display: none;">
+                    <h6>Results:</h6>
+                    <div id="batchResultsList" class="list-group"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="card products-card">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Tracked Products</h5>
                 <div class="table-responsive">
                     <table class="table">
                         <thead>
                             <tr>
+                                <th>Image</th>
                                 <th>Name</th>
-                                <th>Website</th>
-                                <th>Current Price</th>
+                                <th>Brand</th>
+                                <th>Description</th>
+                                <th>Price</th>
+                                <th>Stock Status</th>
+                                <th>Rating</th>
                                 <th>Added Date</th>
                                 <th>Actions</th>
                             </tr>
@@ -61,12 +87,51 @@
                     products.forEach(product => {
                         const row = document.createElement('tr');
                         row.innerHTML = `
-                            <td><a href="${product.url}" target="_blank">${product.name}</a></td>
-                            <td>${product.website}</td>
-                            <td>${product.current_price} SAR</td>
+                            <td>
+                                ${product.image_url 
+                                    ? `<img src="${product.image_url}" alt="${product.name}" class="product-image" />`
+                                    : '<div class="product-image bg-light d-flex align-items-center justify-content-center"><i class="fas fa-image text-muted"></i></div>'
+                                }
+                            </td>
+                            <td>
+                                <a href="${product.url}" target="_blank" class="text-decoration-none">
+                                    ${product.name}
+                                </a>
+                            </td>
+                            <td>${product.brand || 'N/A'}</td>
+                            <td>
+                                <div class="description-cell">
+                                    <div class="description-preview">${product.description || 'No description'}</div>
+                                    ${product.description ? '<span class="description-toggle" onclick="toggleDescription(this)">Read more</span>' : ''}
+                                    ${product.keywords ? `
+                                        <div class="keywords-container mt-2">
+                                            ${product.keywords.split(',').map(keyword => 
+                                                `<span class="keyword-tag">${keyword.trim()}</span>`
+                                            ).join('')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </td>
+                            <td class="fw-bold">${product.current_price} SAR</td>
+                            <td>
+                                <span class="status-badge ${product.stock_status === 'in stock' ? 'status-in-stock' : 'status-out-of-stock'}">
+                                    ${product.stock_status || 'N/A'}
+                                </span>
+                            </td>
+                            <td>
+                                ${product.rating 
+                                    ? `<div class="rating-stars">
+                                        ${getStarRating(product.rating)}
+                                        <span class="ms-1 text-muted">(${product.review_count || 0})</span>
+                                       </div>`
+                                    : 'No rating'
+                                }
+                            </td>
                             <td>${new Date(product.created_at).toLocaleDateString()}</td>
                             <td>
-                                <button class="btn btn-sm btn-info" onclick="viewHistory(${product.id})">History</button>
+                                <button class="btn btn-history" onclick="viewHistory(${product.id})">
+                                    <i class="fas fa-history me-1"></i>History
+                                </button>
                             </td>
                         `;
                         tableBody.appendChild(row);
@@ -75,23 +140,55 @@
                 .catch(error => console.error('Error loading products:', error));
         }
 
+        function getStarRating(rating) {
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 >= 0.5;
+            let stars = '';
+            
+            for (let i = 0; i < 5; i++) {
+                if (i < fullStars) {
+                    stars += '<i class="fas fa-star"></i>';
+                } else if (i === fullStars && hasHalfStar) {
+                    stars += '<i class="fas fa-star-half-alt"></i>';
+                } else {
+                    stars += '<i class="far fa-star"></i>';
+                }
+            }
+            return stars;
+        }
+
+        function toggleDescription(element) {
+            const preview = element.previousElementSibling;
+            const isExpanded = preview.style.maxHeight === 'none';
+            
+            if (isExpanded) {
+                preview.style.maxHeight = '3em';
+                preview.style.display = '-webkit-box';
+                element.textContent = 'Read more';
+            } else {
+                preview.style.maxHeight = 'none';
+                preview.style.display = 'block';
+                element.textContent = 'Show less';
+            }
+        }
+
         function addProduct() {
             const urlInput = document.getElementById('productUrl');
             const errorMessage = document.getElementById('errorMessage');
             
-            fetch('/add_product', {
+            fetch('/add_products', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    url: urlInput.value
+                    urls: [urlInput.value]
                 })
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    errorMessage.textContent = data.error;
+                if (data[0]?.error) {
+                    errorMessage.textContent = data[0].error;
                     errorMessage.style.display = 'block';
                 } else {
                     errorMessage.style.display = 'none';
@@ -102,6 +199,83 @@
             .catch(error => {
                 errorMessage.textContent = 'An error occurred while adding the product.';
                 errorMessage.style.display = 'block';
+            });
+        }
+
+        function addMultipleProducts() {
+            const urlsInput = document.getElementById('productsUrls');
+            const errorMessage = document.getElementById('multipleErrorMessage');
+            const batchResults = document.getElementById('batchResults');
+            const batchResultsList = document.getElementById('batchResultsList');
+            
+            // Split the textarea value by newline and filter out empty lines
+            const urls = urlsInput.value.split('\n')
+                .map(url => url.trim())
+                .filter(url => url);
+
+            if (urls.length === 0) {
+                errorMessage.textContent = 'Please enter at least one URL.';
+                errorMessage.style.display = 'block';
+                batchResults.style.display = 'none';
+                return;
+            }
+
+            if (urls.length > 10) {
+                errorMessage.textContent = 'Maximum 10 URLs allowed at once.';
+                errorMessage.style.display = 'block';
+                batchResults.style.display = 'none';
+                return;
+            }
+            
+            // Show loading state
+            errorMessage.style.display = 'none';
+            batchResults.style.display = 'none';
+            const addButton = document.querySelector('.add-multiple-products-card .btn-primary');
+            const originalText = addButton.innerHTML;
+            addButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+            addButton.disabled = true;
+            
+            fetch('/add_products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ urls: urls })
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Display results for each URL
+                batchResultsList.innerHTML = data.map(result => `
+                    <div class="list-group-item ${result.error ? 'list-group-item-danger' : 'list-group-item-success'}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-truncate" style="max-width: 500px;" title="${result.url}">
+                                    ${result.url}
+                                </div>
+                                <small class="text-${result.error ? 'danger' : 'success'}">
+                                    ${result.error || result.message}
+                                </small>
+                            </div>
+                            ${!result.error ? `
+                                <a href="#product-${result.product.id}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `).join('');
+                
+                batchResults.style.display = 'block';
+                urlsInput.value = '';
+                loadProducts();
+            })
+            .catch(error => {
+                errorMessage.textContent = 'An error occurred while adding the products.';
+                errorMessage.style.display = 'block';
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                // Reset button state
+                addButton.innerHTML = originalText;
+                addButton.disabled = false;
             });
         }
 
